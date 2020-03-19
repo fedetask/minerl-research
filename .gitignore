@@ -2,4 +2,5 @@ minerl/minerl-dataset
 */__pycache__
 .idea
 venv/
-miner/vae/images
+minerl/vae/images
+minerl/vae/__pycache__
