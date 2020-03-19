@@ -4,3 +4,4 @@ minerl/minerl-dataset
 venv/
 minerl/vae/images
 minerl/vae/__pycache__
+minerl/vae/checkpoints/

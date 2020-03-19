@@ -21,7 +21,7 @@ class CVAE(tf.keras.Model):
         super(CVAE, self).__init__()
         self.img_shape = img_shape
         self.latent_dim = tf.constant(latent_dim)
-        self.beta = tf.constant(float(beta))
+        self.beta = tf.Variable(float(beta), trainable=False)
 
         encoder_input = Input(shape=self.img_shape)
         x = Conv2D(filters=32, kernel_size=5, activation='relu', padding='same')(encoder_input)
@@ -108,9 +108,9 @@ class CVAE(tf.keras.Model):
         z = self.reparametrize(mean, logvar)
         decoded = self.decode(z)
 
-        reconstruction_loss = tf.reduce_mean(tf.reduce_sum(tf.square(x - decoded), axis=[1, 2, 3]))
-        kl_loss = - tf.reduce_mean(0.5 * tf.reduce_sum(1 + logvar - tf.pow(mean, 2) - tf.exp(logvar), axis=1))
-        loss = reconstruction_loss + self.beta * kl_loss
+        reconstruction_loss = tf.reduce_sum(tf.square(x - decoded), axis=[1, 2, 3])
+        kl_loss = -0.5 * tf.reduce_sum(1 + logvar - tf.pow(mean, 2) - tf.exp(logvar), axis=1)
+        loss = tf.reduce_mean(reconstruction_loss + self.beta * kl_loss)
         return reconstruction_loss, kl_loss, loss
 
     def compute_apply_gradients(self, x, opt):
