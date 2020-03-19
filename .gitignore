@@ -1,4 +1,4 @@
 minerl/minerl-dataset
 */__pycache__
-*/.idea
+.idea
 venv/
