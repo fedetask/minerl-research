@@ -72,23 +72,17 @@ class CVAE(tf.keras.Model):
         eps = tf.random.normal(shape=mean.shape)
         return eps * tf.exp(logvar * .5) + mean
 
-    def decode(self, z, apply_sigmoid=False):
+    def decode(self, z):
         """Decode the given vectors in latent space into an image of shape `self.img_shape`
 
         Args:
             z (Tensor): N latent vectors (as Tensors)
-            apply_sigmoid (int, optional): Whether to apply a sigmoid activation on the decoded images
 
         Returns:
-            N images decoded from the given latent space representations. Pixel values are ensured to be in [0, 1] only
-            if `apply_sigmoid` is True
+            N images decoded from the given latent space representations.
 
         """
         logits = self.generative_net(z)
-        if apply_sigmoid:
-            probs = tf.sigmoid(logits)
-            return probs
-
         return logits
 
     def compute_loss(self, x):

@@ -13,7 +13,7 @@ def visualize_results(model, test_data, images_per_row=10):
 
     """
     encoded = model.encode(test_data)
-    decoded = model.decode(encoded, apply_sigmoid=True)
+    decoded = model.decode(encoded, apply_sigmoid=False)
 
     f, axes = plt.subplots(int(test_data.shape[0] / images_per_row) * 2, images_per_row)
     ax_idx = 0
