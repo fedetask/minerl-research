@@ -80,7 +80,7 @@ def get_random_samples(datasets, sample_size, dataset_weights=None, normalize=Tr
 
 
 def train(model, dataset_list, optimizer, epochs=10, sample_per_epoch=50000, resample_freq=10, batch_size=100,
-          beta_cycle=3, dataset_weights=None, checkpoint_manager=None, tensorboard_dir='log_dir'):
+          beta_half_cycle=3, beta_freeze=2, dataset_weights=None, checkpoint_manager=None, tensorboard_dir='log_dir'):
     """Train the given model by switching datasets and randomly sampling batches.
 
     The training is performed for the given number of epochs as follows:
@@ -99,9 +99,10 @@ def train(model, dataset_list, optimizer, epochs=10, sample_per_epoch=50000, res
         sample_per_epoch (int): Number of samples to be loaded from datasets in each epoch
         resample_freq (int): Frequency (in epochs) of the resampling.
         batch_size (int): Size of a batch used in ech training step. Defaults to 100 and shouldn't be lower.
-        beta_cycle (int): Half-cycle duration (in epochs) of the beta annealing. E.g. if beta_cycle = 3 then beta is
+        beta_half_cycle (int): Half-cycle duration (in epochs) of the beta annealing. E.g. if beta_cycle = 3 then beta is
             annealed in cycles of 3 epochs in which it is increased and 3 epochs in which it is kept fixed at its
             maximum. If beta_cycle is None then no annealing is performed.
+        beta_freeze (int): Number of initial epochs that are performed with beta fixed to 0.
         dataset_weights (list of floats): List of weights used when deciding how many samples to take from each dataset.
             Must sum to 1. Example: if dataset 3 has weight 0.2, then 0.2 * sample_per_epoch will be taken from it.
             If None then uniform weights will be given.
@@ -111,15 +112,15 @@ def train(model, dataset_list, optimizer, epochs=10, sample_per_epoch=50000, res
     """
 
     assert sample_per_epoch % batch_size == 0
-    assert beta_cycle is None or beta_cycle > 0
+    assert beta_half_cycle is None or beta_half_cycle > 0
 
     if tensorboard_dir is not None:
         tf_summary_freq = 1  # Frequency of tensorboard logging (in batches)
         tf_summary_writer = tf.summary.create_file_writer(os.path.join(tensorboard_dir, 'train'))
 
-    if beta_cycle is not None:
-        half_cycle_steps = int(beta_cycle * sample_per_epoch / batch_size)
-        print('Annealing every '+str(beta_cycle)+' epochs which means '+str(half_cycle_steps)+' steps')
+    if beta_half_cycle is not None:
+        half_cycle_steps = int(beta_half_cycle * sample_per_epoch / batch_size)
+        print('Annealing every '+str(beta_half_cycle)+' epochs which means '+str(half_cycle_steps)+' steps')
 
     steps = 0
     for epoch in range(epochs):
@@ -129,14 +130,18 @@ def train(model, dataset_list, optimizer, epochs=10, sample_per_epoch=50000, res
             samples = get_random_samples(dataset_list, sample_per_epoch, dataset_weights, normalize=True)
 
         # Beta annealing cycles
-        if beta_cycle is not None:
-            if epoch % (2 * beta_cycle) == 0:  # We completed a full cycle
+        if beta_half_cycle is not None:
+            if epoch % (2 * beta_half_cycle) == 0:  # We completed a full cycle
                 model.beta.assign(0.)
                 print('Increase again at '+str(epoch))
                 increase_beta = True
-            elif epoch % beta_cycle == 0:  # We completed the first half of the cycle
+            elif epoch % beta_half_cycle == 0:  # We completed the first half of the cycle
                 increase_beta = False
                 print('stop increasing at '+str(epoch))
+
+        if epoch < beta_freeze:
+            increase_beta = False
+            model.beta.assign(0.)
 
         metrics = TrainMetrics(names=['train_reconstruction_loss', 'train_kl_loss', 'train_total_loss'])
         bar = tf.keras.utils.Progbar(target=samples.shape[0], stateful_metrics=metrics.names)
