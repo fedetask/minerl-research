@@ -5,3 +5,4 @@ venv/
 minerl/vae/images
 minerl/vae/__pycache__
 minerl/vae/checkpoints/
+minerl/vae/log_dir
