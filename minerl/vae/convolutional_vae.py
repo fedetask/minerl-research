@@ -21,13 +21,14 @@ class CVAE(tf.keras.Model):
         super(CVAE, self).__init__()
         self.img_shape = img_shape
         self.latent_dim = tf.constant(latent_dim)
-        self.beta = tf.Variable(float(beta), trainable=False)
+        self.fixed_beta = tf.constant(float(beta))  # Keep the beta value of the model
+        self.beta = tf.Variable(float(beta), trainable=False)  # Beta value used (can be modified in annealing)
 
         encoder_input = Input(shape=self.img_shape)
-        x = Conv2D(filters=32, kernel_size=5, activation='relu', padding='same')(encoder_input)
-        x = Conv2D(filters=64, kernel_size=3, strides=2, activation='relu', padding='same')(x)
+        x = Conv2D(filters=64, kernel_size=5, activation='relu', padding='same')(encoder_input)
         x = Conv2D(filters=128, kernel_size=3, strides=2, activation='relu', padding='same')(x)
         x = Conv2D(filters=256, kernel_size=3, strides=2, activation='relu', padding='same')(x)
+        x = Conv2D(filters=512, kernel_size=3, strides=2, activation='relu', padding='same')(x)
         conv_shape = x.shape
         x = Flatten()(x)
         x = Dense(latent_dim * 2)(x)
@@ -35,11 +36,11 @@ class CVAE(tf.keras.Model):
         self.inference_net.summary()
 
         decoder_input = Input(shape=(latent_dim,))
-        x = Dense(units=conv_shape[1] * conv_shape[2] * conv_shape[3], activation='relu')(decoder_input)
+        x = Dense(units=conv_shape[1] * conv_shape[2] * conv_shape[3])(decoder_input)
         x = Reshape(target_shape=(conv_shape[1], conv_shape[2], conv_shape[3]))(x)
+        x = Conv2DTranspose(filters=512, kernel_size=3, strides=2, padding='same', activation='relu')(x)
         x = Conv2DTranspose(filters=256, kernel_size=3, strides=2, padding='same', activation='relu')(x)
-        x = Conv2DTranspose(filters=64, kernel_size=3, strides=2, padding='same', activation='relu')(x)
-        x = Conv2DTranspose(filters=32, kernel_size=3, strides=2, padding='same', activation='relu')(x)
+        x = Conv2DTranspose(filters=128, kernel_size=3, strides=2, padding='same', activation='relu')(x)
         x = Conv2DTranspose(filters=self.img_shape[2], kernel_size=3, padding='same', activation='sigmoid')(x)
         self.generative_net = tf.keras.Model(decoder_input, x)
         self.generative_net.summary()
@@ -108,8 +109,9 @@ class CVAE(tf.keras.Model):
         z = self.reparametrize(mean, logvar)
         decoded = self.decode(z)
 
-        reconstruction_loss = tf.reduce_sum(tf.square(x - decoded), axis=[1, 2, 3])
-        kl_loss = -0.5 * tf.reduce_sum(1 + logvar - tf.pow(mean, 2) - tf.exp(logvar), axis=1)
+        npixesl = float(self.img_shape[0] * self.img_shape[1] * self.img_shape[2])
+        reconstruction_loss = tf.reduce_sum(tf.square(x - decoded), axis=[1, 2, 3]) / npixesl
+        kl_loss = -0.5 * tf.reduce_sum(1 + logvar - tf.pow(mean, 2) - tf.exp(logvar), axis=1) / float(self.latent_dim)
         loss = tf.reduce_mean(reconstruction_loss + self.beta * kl_loss)
         return reconstruction_loss, kl_loss, loss
 
