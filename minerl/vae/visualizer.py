@@ -13,7 +13,7 @@ def visualize_results(model, test_data, images_per_row=10):
 
     """
     encoded = model.encode(test_data)
-    decoded = model.decode(encoded, apply_sigmoid=False)
+    decoded = model.decode(encoded)
 
     f, axes = plt.subplots(int(test_data.shape[0] / images_per_row) * 2, images_per_row)
     ax_idx = 0
@@ -23,3 +23,23 @@ def visualize_results(model, test_data, images_per_row=10):
         axes[ax_idx, img_idx % images_per_row].imshow(test_data[img_idx])
         axes[ax_idx + 1, img_idx % images_per_row].imshow(decoded[img_idx].numpy())
     plt.show()
+
+
+def visualize_frames(model, test_data, fps=1.):
+    """Visualize original images and their encode/decode reconstruction at the given frame-rate
+
+    Args:
+        model (CVAE): Trained CVAE model
+        test_data (np.ndarray): Array of images
+        fps (float): Images displayed per second
+
+    """
+
+    plt.ion()
+    f, axes = plt.subplots(1, 2)
+    encoded = model.encode(test_data)
+    decoded = model.decode(encoded)
+    for i in range(test_data.shape[0]):
+        axes[0].imshow(test_data[i])
+        axes[1].imshow(decoded[i])
+        plt.pause(1. / fps)
