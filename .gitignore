@@ -1,4 +1,8 @@
 minerl/minerl-dataset
 */__pycache__
-*/.idea
+.idea
 venv/
+minerl/vae/images
+minerl/vae/__pycache__
+minerl/vae/checkpoints/
+minerl/vae/log_dir
