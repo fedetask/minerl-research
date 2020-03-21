@@ -22,11 +22,11 @@ class CVAE(tf.keras.Model):
         """
         super(CVAE, self).__init__()
         self.img_shape = img_shape
-        self.latent_dim = tf.constant(latent_dim)
+        self.latent_dim = tf.constant(float(latent_dim))
         self.fixed_beta = tf.constant(float(beta))  # Keep the beta value of the model
         self.beta = tf.Variable(float(beta), trainable=False)  # Beta value used (can be modified in annealing)
         self.rec_loss_scale = float(img_shape[0] * img_shape[1]) if scale_losses else 1.
-        self.kl_loss_scale = float(self.latent_dim) if scale_losses else 1.
+        self.kl_loss_scale = self.latent_dim if scale_losses else 1.
 
         encoder_input = Input(shape=self.img_shape)
         x = Conv2D(filters=32, kernel_size=5, padding='same')(encoder_input)
