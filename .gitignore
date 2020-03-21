@@ -1,8 +1,11 @@
-minerl/minerl-dataset
+minerl-dataset
 */__pycache__
 .idea
 venv/
-minerl/vae/images
-minerl/vae/__pycache__
-minerl/vae/checkpoints/
-minerl/vae/log_dir
+vae/images
+vae/__pycache__
+vae/checkpoints/
+vae/log_dir
+native_malmo/
+__init__.py
+__pycache__
