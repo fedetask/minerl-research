@@ -25,10 +25,11 @@ class CVAE(tf.keras.Model):
         self.beta = tf.Variable(float(beta), trainable=False)  # Beta value used (can be modified in annealing)
 
         encoder_input = Input(shape=self.img_shape)
-        x = Conv2D(filters=64, kernel_size=5, activation='relu', padding='same')(encoder_input)
+        x = Conv2D(filters=32, kernel_size=5, padding='same')(encoder_input)
+        x = Conv2D(filters=64, kernel_size=3, activation='relu', padding='same')(x)
+        x = Conv2D(filters=64, kernel_size=3, strides=2, activation='relu', padding='same')(x)
         x = Conv2D(filters=128, kernel_size=3, strides=2, activation='relu', padding='same')(x)
         x = Conv2D(filters=256, kernel_size=3, strides=2, activation='relu', padding='same')(x)
-        x = Conv2D(filters=512, kernel_size=3, strides=2, activation='relu', padding='same')(x)
         conv_shape = x.shape
         x = Flatten()(x)
         x = Dense(latent_dim * 2)(x)
@@ -38,9 +39,10 @@ class CVAE(tf.keras.Model):
         decoder_input = Input(shape=(latent_dim,))
         x = Dense(units=conv_shape[1] * conv_shape[2] * conv_shape[3])(decoder_input)
         x = Reshape(target_shape=(conv_shape[1], conv_shape[2], conv_shape[3]))(x)
-        x = Conv2DTranspose(filters=512, kernel_size=3, strides=2, padding='same', activation='relu')(x)
         x = Conv2DTranspose(filters=256, kernel_size=3, strides=2, padding='same', activation='relu')(x)
         x = Conv2DTranspose(filters=128, kernel_size=3, strides=2, padding='same', activation='relu')(x)
+        x = Conv2DTranspose(filters=64, kernel_size=3, strides=2, padding='same', activation='relu')(x)
+        x = Conv2D(filters=64, kernel_size=3, activation='relu', padding='same')(x)
         x = Conv2DTranspose(filters=self.img_shape[2], kernel_size=3, padding='same', activation='sigmoid')(x)
         self.generative_net = tf.keras.Model(decoder_input, x)
         self.generative_net.summary()
@@ -103,7 +105,7 @@ class CVAE(tf.keras.Model):
         z = self.reparametrize(mean, logvar)
         decoded = self.decode(z)
 
-        npixesl = float(self.img_shape[0] * self.img_shape[1] * self.img_shape[2])
+        npixesl = float(self.img_shape[0] * self.img_shape[1])  # We scale by the number of pixels (TODO is this ok?)
         reconstruction_loss = tf.reduce_sum(tf.square(x - decoded), axis=[1, 2, 3]) / npixesl
         kl_loss = -0.5 * tf.reduce_sum(1 + logvar - tf.pow(mean, 2) - tf.exp(logvar), axis=1) / float(self.latent_dim)
         loss = tf.reduce_mean(reconstruction_loss + self.beta * kl_loss)
