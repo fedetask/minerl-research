@@ -3,10 +3,10 @@ import os
 import random
 import math
 import tensorflow as tf
+import time
 from tensorflow.keras.optimizers import Adam
 from convolutional_vae import CVAE
-from visualizer import visualize_results
-from matplotlib import pyplot as plt
+from visualizer import visualize_results, visualize_frames
 
 
 class TrainMetrics:
@@ -26,17 +26,15 @@ class TrainMetrics:
             metric.reset_states()
 
 
-def get_random_dataset(dataset_dir='images/', n_datasets=1):
-    dataset_names = [f for f in os.listdir(dataset_dir)]
-    return random.sample(dataset_names, n_datasets)
-
-
-def load_dataset(dataset_name, dataset_dir='images/'):
-    path = os.path.join(dataset_dir, dataset_name)
-    return np.load(path, mmap_mode='r')
-
-
 def get_datasets(dataset_dir='images/'):
+    """Returns a list of datasets loaded from the given directory.
+
+    Args:
+        dataset_dir (str): Directory containing the numpy files -e.g. .npy files.
+
+    Returns:
+        A list of numpy.ndarray lazy-loaded from the given directory
+    """
     dataset_paths = [os.path.join(dataset_dir, f) for f in os.listdir(dataset_dir)]
     dataset_list = [np.load(path, mmap_mode='r') for path in dataset_paths]
     return dataset_list
@@ -120,7 +118,7 @@ def train(model, dataset_list, optimizer, epochs=10, sample_per_epoch=50000, res
 
     if beta_half_cycle is not None:
         half_cycle_steps = int(beta_half_cycle * sample_per_epoch / batch_size)
-        print('Annealing every '+str(beta_half_cycle)+' epochs which means '+str(half_cycle_steps)+' steps')
+        print('Annealing every ' + str(beta_half_cycle) + ' epochs which means ' + str(half_cycle_steps) + ' batches')
 
     steps = 0
     for epoch in range(epochs):
@@ -133,11 +131,9 @@ def train(model, dataset_list, optimizer, epochs=10, sample_per_epoch=50000, res
         if beta_half_cycle is not None:
             if epoch % (2 * beta_half_cycle) == 0:  # We completed a full cycle
                 model.beta.assign(0.)
-                print('Increase again at '+str(epoch))
                 increase_beta = True
             elif epoch % beta_half_cycle == 0:  # We completed the first half of the cycle
                 increase_beta = False
-                print('stop increasing at '+str(epoch))
 
         if epoch < beta_freeze:
             increase_beta = False
@@ -167,17 +163,21 @@ def train(model, dataset_list, optimizer, epochs=10, sample_per_epoch=50000, res
 
 
 if __name__ == "__main__":
-    datasets = get_datasets()
+    dataset_list = get_datasets()
 
-    cvae = CVAE(img_shape=(64, 64, 3), latent_dim=128, beta=2.)
+    cvae = CVAE(img_shape=(64, 64, 3), latent_dim=256, beta=2.)
     adam = Adam()
 
+    # Checkpoint management for saving and restoring model
     cpk = tf.train.Checkpoint(optimizer=adam, model=cvae)
     cpk_manager = tf.train.CheckpointManager(cpk, directory='checkpoints/', max_to_keep=2)
     status = cpk.restore(cpk_manager.latest_checkpoint)
 
-    train(model=cvae, dataset_list=datasets, optimizer=adam, epochs=1000, sample_per_epoch=500, resample_freq=5,
-          batch_size=100, dataset_weights=None, checkpoint_manager=cpk_manager)
+    # Train the model
+    train(model=cvae, dataset_list=dataset_list, optimizer=adam, epochs=50, sample_per_epoch=25600, resample_freq=1,
+          batch_size=128, beta_half_cycle=3, beta_freeze=5, dataset_weights=None, checkpoint_manager=cpk_manager)
 
-    imgs = get_random_samples(datasets=datasets, sample_size=20, normalize=True)
-    visualize_results(model=cvae, test_data=imgs)
+    # Visualize the encode/decode reconstruction of some random images
+    imgs = get_random_samples(datasets=dataset_list, sample_size=20, normalize=True)
+    # visualize_results(model=cvae, test_data=imgs)
+    visualize_frames(cvae, imgs, fps=1.)
