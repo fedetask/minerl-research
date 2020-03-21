@@ -165,7 +165,7 @@ def train(model, dataset_list, optimizer, epochs=10, sample_per_epoch=50000, res
 if __name__ == "__main__":
     dataset_list = get_datasets()
 
-    cvae = CVAE(img_shape=(64, 64, 3), latent_dim=256, beta=2.)
+    cvae = CVAE(img_shape=(64, 64, 3), latent_dim=256, beta=2., scale_losses=True)
     adam = Adam()
 
     # Checkpoint management for saving and restoring model

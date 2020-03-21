@@ -5,7 +5,7 @@ from tensorflow.keras.layers import Input, Conv2D, Flatten, Conv2DTranspose, Den
 
 class CVAE(tf.keras.Model):
 
-    def __init__(self, img_shape, latent_dim, beta=1.):
+    def __init__(self, img_shape, latent_dim, beta=1., scale_losses=True):
         """Create the Convolutional Variational Autoencoder model.
 
         The model consists of 4 convolutional layers, each one downscaling the image by a factor of 2, the encoded layer
@@ -16,6 +16,8 @@ class CVAE(tf.keras.Model):
             img_shape (tuple): The shape of input images (height, width, channels)
             latent_dim (int): Size of encoding
             beta (float, optional):
+            scale_losses (bool, optional): If true reconstruction loss is scaled by the number of pixels in the image
+                and KL loss is scaled by the size of the latent space
 
         """
         super(CVAE, self).__init__()
@@ -23,6 +25,8 @@ class CVAE(tf.keras.Model):
         self.latent_dim = tf.constant(latent_dim)
         self.fixed_beta = tf.constant(float(beta))  # Keep the beta value of the model
         self.beta = tf.Variable(float(beta), trainable=False)  # Beta value used (can be modified in annealing)
+        self.rec_loss_scale = float(img_shape[0] * img_shape[1]) if scale_losses else 1.
+        self.kl_loss_scale = float(self.latent_dim) if scale_losses else 1.
 
         encoder_input = Input(shape=self.img_shape)
         x = Conv2D(filters=32, kernel_size=5, padding='same')(encoder_input)
@@ -105,9 +109,8 @@ class CVAE(tf.keras.Model):
         z = self.reparametrize(mean, logvar)
         decoded = self.decode(z)
 
-        npixesl = float(self.img_shape[0] * self.img_shape[1])  # We scale by the number of pixels (TODO is this ok?)
-        reconstruction_loss = tf.reduce_sum(tf.square(x - decoded), axis=[1, 2, 3]) / npixesl
-        kl_loss = -0.5 * tf.reduce_sum(1 + logvar - tf.pow(mean, 2) - tf.exp(logvar), axis=1) / float(self.latent_dim)
+        reconstruction_loss = tf.reduce_sum(tf.square(x - decoded), axis=[1, 2, 3]) / self.rec_loss_scale
+        kl_loss = -0.5 * tf.reduce_sum(1 + logvar - tf.pow(mean, 2) - tf.exp(logvar), axis=1) / self.kl_loss_scale
         loss = tf.reduce_mean(reconstruction_loss + self.beta * kl_loss)
         return reconstruction_loss, kl_loss, loss
 
