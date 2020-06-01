@@ -12,8 +12,8 @@ def visualize_results(model, test_data, images_per_row=10):
         images_per_row (int, optional): Number of images per row. Must be a submultiple of `test_data.shape[0]`
 
     """
-    encoded = model.encode(test_data)
-    decoded = model.decode(encoded)
+    means, logvars = model.encode(test_data)
+    decoded = model.decode(means)
 
     f, axes = plt.subplots(int(test_data.shape[0] / images_per_row) * 2, images_per_row)
     ax_idx = 0
@@ -37,8 +37,8 @@ def visualize_frames(model, test_data, fps=1.):
 
     plt.ion()
     f, axes = plt.subplots(1, 2)
-    encoded = model.encode(test_data)
-    decoded = model.decode(encoded)
+    means, logvars = model.encode(test_data)
+    decoded = model.decode(means)
     for i in range(test_data.shape[0]):
         axes[0].imshow(test_data[i])
         axes[1].imshow(decoded[i])
