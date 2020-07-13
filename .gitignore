@@ -6,6 +6,6 @@ vae/images
 vae/__pycache__
 vae/checkpoints/
 vae/log_dir
-native_malmo/
+examples/
 __init__.py
 __pycache__
