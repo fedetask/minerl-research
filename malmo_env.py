@@ -7,15 +7,14 @@ from Keys import Observations, Actions, Items
 
 class MalmoEnv(ABC):
 
-    def __init__(self, log_obs=True):
-        self.log_obs = log_obs
+    def __init__(self):
         self.blackboard = Client(name='malmo_env')
         register_variables(self.blackboard, namespace=Namespace.OBSERVATIONS,
                            can_write=True, variables=Observations.all())
         register_variables(self.blackboard, namespace=Namespace.ACTIONS,
                            can_write=True, variables=Actions.all())
 
-    def run(self, behavior=None, max_steps=0, min_step_duration=15):
+    def run(self, behavior=None, max_steps=0, min_step_duration=15, log_obs=False):
         """Run the main loop of the environment.
 
         The loop consists of the following steps:
@@ -30,6 +29,7 @@ class MalmoEnv(ABC):
             min_step_duration (int): Minimum number of steps (in world time) between subsequent
                 observations. Due to the asynchronous nature a fixed number of steps cannot be
                 enforced.
+            log_obs (bool): Whether to log the observations in the blackboard
         """
         step = 0
         done = False
@@ -49,11 +49,9 @@ class MalmoEnv(ABC):
                 continue
             last_world_time = obs[Observations.TIME_ALIVE]
 
-            print(obs['inventory'])
-
             # Main loop observation - action
             self.write_observation(observation=obs)
-            if self.log_obs:
+            if log_obs:
                 print(self.blackboard)
             if behavior is not None:
                 behavior.tick()  # The behavior will write the action in the actions blackboard

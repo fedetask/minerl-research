@@ -6,8 +6,8 @@ from Keys import Actions, Observations, Items
 
 class MalmoSocketEnv(MalmoEnv):
 
-    def __init__(self, mission_path='missions/default_world_1.xml', log_obs=True):
-        super(MalmoSocketEnv, self).__init__(log_obs=log_obs)
+    def __init__(self, mission_path='missions/default_world_1.xml'):
+        super(MalmoSocketEnv, self).__init__()
         self.mission_path = mission_path
         self.agent_host = None
         self.my_mission = None
@@ -61,7 +61,7 @@ class MalmoSocketEnv(MalmoEnv):
 
         Args:
             action_name (str): The name of the action, must belong to MalmoEnv.action_keys.
-            action_value (str): The value of the action.
+            action_value (Union[str, int]): The value of the action.
 
         Returns:
             The string command for the Malmo platform to execute the desired action.
@@ -106,6 +106,6 @@ class MalmoSocketEnv(MalmoEnv):
 
 
 if __name__ == '__main__':
-    env = MalmoSocketEnv(log_obs=False)
+    env = MalmoSocketEnv()
     env.init()
-    env.run(max_steps=0, min_step_duration=20)
+    env.run(max_steps=0, min_step_duration=20, log_obs=False)
