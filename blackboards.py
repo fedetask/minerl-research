@@ -1,6 +1,7 @@
 from py_trees.common import Access
 from py_trees.blackboard import Client
 from enum import Enum
+import Keys
 
 
 class Namespace(Enum):
@@ -54,3 +55,26 @@ def read_variables(client, namespace, variables):
     """
     variables = {var: client.get(namespace.value + '/' + var) for var in variables}
     return variables
+
+
+def read_var(client, namespace, var_name):
+    return client.get(namespace.value + '/' + var_name)
+
+
+def set_var(client, namespace, var_name, var_value):
+    setattr(client, namespace.value + '/' + var_name, var_value)
+
+
+def register_all_observations(client, can_write):
+    register_variables(client=client, namespace=Namespace.OBSERVATIONS, can_write=can_write,
+                       variables=Keys.Observations.all())
+
+
+def register_all_actions(client, can_write):
+    register_variables(client=client, namespace=Namespace.ACTIONS, can_write=can_write,
+                       variables=Keys.Actions.all())
+
+
+def register_all_commands(client, can_write):
+    register_variables(client=client, namespace=Namespace.COMMANDS, can_write=can_write,
+                       variables=Keys.Commands.all())
