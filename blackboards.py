@@ -65,16 +65,43 @@ def set_var(client, namespace, var_name, var_value):
     setattr(client, namespace.value + '/' + var_name, var_value)
 
 
-def register_all_observations(client, can_write):
+def read_command(client, key):
+    return read_var(client, Namespace.COMMANDS, key)
+
+
+def set_command(client, key, value):
+    set_var(client, Namespace.COMMANDS, key, value)
+
+
+def read_observation(client, key):
+    return read_var(client, Namespace.OBSERVATIONS, key)
+
+
+def set_observation(client, key, value):
+    return set_var(client, Namespace.OBSERVATIONS, key, value)
+
+
+def read_action(client, key):
+    return read_var(client, Namespace.ACTIONS, key)
+
+
+def set_action(client, key, value):
+    set_var(client, Namespace.ACTIONS, key, value)
+
+
+def register_observations(client, can_write, variables=None):
+    to_register = variables if variables is not None else Keys.Observations.all()
     register_variables(client=client, namespace=Namespace.OBSERVATIONS, can_write=can_write,
-                       variables=Keys.Observations.all())
+                       variables=to_register)
 
 
-def register_all_actions(client, can_write):
+def register_actions(client, can_write, variables=None):
+    to_register = variables if variables is not None else Keys.Actions.all()
     register_variables(client=client, namespace=Namespace.ACTIONS, can_write=can_write,
-                       variables=Keys.Actions.all())
+                       variables=to_register)
 
 
-def register_all_commands(client, can_write):
+def register_commands(client, can_write, variables=None):
+    to_register = variables if variables is not None else Keys.Commands.all()
     register_variables(client=client, namespace=Namespace.COMMANDS, can_write=can_write,
-                       variables=Keys.Commands.all())
+                       variables=to_register)
