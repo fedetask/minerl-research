@@ -40,10 +40,11 @@
             </ObservationFromNearbyEntities>
             <ObservationFromGrid>
                 <Grid name="Grid">
-                    <min x="-20" y="-5" z="-20"/>
-                    <max x="20" y="5" z="20"/>
+                    <min x="-15" y="-10" z="-15"/>
+                    <max x="15" y="10" z="15"/>
                 </Grid>
             </ObservationFromGrid>
+            <ObservationFromRay includeNBT="false"/>
             <VideoProducer want_depth="false">
                 <Width>480</Width>
                 <Height>320</Height>
