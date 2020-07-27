@@ -32,6 +32,10 @@ class Observations(KeyList):
     INVENTORY = 'inventory'
     GRID = 'Grid'
     GRID_DIM = 'Grid_dim'
+    AVG_STEP_DURATION = 'AvgStepDuration'
+    TURN_SPEED = 'TurnSpeed'
+    MS_PER_TICK = 'MsPerTick'
+    LINE_OF_SIGHT = 'LineOfSight'
 
     @staticmethod
     def all():
@@ -39,7 +43,8 @@ class Observations(KeyList):
                 Observations.IS_ALIVE, Observations.AIR, Observations.X_POS, Observations.Y_POS,
                 Observations.Z_POS, Observations.PITCH, Observations.YAW,
                 Observations.NEARBY_ENTITIES, Observations.INVENTORY, Observations.GRID,
-                Observations.GRID_DIM]
+                Observations.GRID_DIM, Observations.AVG_STEP_DURATION, Observations.TURN_SPEED,
+                Observations.MS_PER_TICK, Observations.LINE_OF_SIGHT]
 
 
 class Items(KeyList):
@@ -52,12 +57,13 @@ class Items(KeyList):
     COBBLESTONE = 'cobblestone'
     FURNACE = 'furnace'
     LOG = 'log'
+    AIR = 'air'
 
     @staticmethod
     def all():
         return [Items.DIRT, Items.STICK, Items.PLANKS, Items.CRAFTING_TABLE,
                 Items.WOODEN_PICKAXE, Items.STONE_PICKAXE, Items.COBBLESTONE, Items.FURNACE,
-                Items.LOG]
+                Items.LOG, Items.AIR]
 
 
 class Actions(KeyList):
@@ -79,8 +85,9 @@ class Actions(KeyList):
 
 
 class Commands(KeyList):
-    DESTINATION = 'destination'
+
+    CLOSEST_WOOD = 'closest_wood'
 
     @staticmethod
     def all():
-        return [Commands.DESTINATION]
+        return [Commands.CLOSEST_WOOD]
