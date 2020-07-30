@@ -94,16 +94,16 @@ class MalmoEnv:
                     init_action = {Actions.JUMP: 1}
                 else:
                     init_action = {Actions.JUMP: 0}
-                self._execute_action(init_action)
                 self._reset_actions()
+                self._execute_action(init_action)
                 continue
 
             if behavior is not None:
                 behavior.tick()  # The behavior will write the action in the actions blackboard
             action = self._read_action()
             self._execute_action(action)
+            self._reset_actions()
             self._log(log_obs, log_behavior, obs, behavior)
-            self._reset_actions(exclude_mask=[Actions.CROUCH, Actions.ATTACK])
 
     @staticmethod
     def get_item_from_inventory(inventory, requested_item, variant=None):
@@ -171,7 +171,7 @@ class MalmoEnv:
         assert ms_per_tick is not None, 'XML Mission does not contain MsPerTick'
         set_observation(self.blackboard, Observations.MS_PER_TICK, ms_per_tick)
 
-    def _reset_actions(self, exclude_mask=[]):
+    def _reset_actions(self, exclude_mask=None):
         """Reset the actions blackboard by setting all actions to None, excluding those in the
         exclude_mask.
 
@@ -179,6 +179,8 @@ class MalmoEnv:
             exclude_mask (list): List of action names that will not be reset to None.
 
         """
+        if exclude_mask is None:
+            exclude_mask = []
         actions = {action: None for action in Actions.all() if action not in exclude_mask}
         write_variables(self.blackboard, Namespace.ACTIONS, actions)
 
@@ -327,5 +329,5 @@ if __name__ == '__main__':
     env = MalmoEnv(mission_path='missions/default_world_1.xml')
     env.init()
     behavior_tree = subtrees.get_behavior_tree()
-    env.run(behavior=behavior_tree, max_steps=0, min_step_duration=10,
+    env.run(behavior=behavior_tree, max_steps=0, min_step_duration=15,
             log_obs=[], log_behavior=False)
