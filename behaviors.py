@@ -38,7 +38,7 @@ class MoveTo(Behaviour):
     def update(self):
         destination = read_command(self.blackboard, self.destination_key)
         cur_pos = get_current_pos(self.blackboard)
-        if is_at(cur_pos=cur_pos, destination=destination, tolerance=self.tolerance):
+        if within_tolerance(pos_a=cur_pos, destination=destination, tolerance=self.tolerance):
             return Status.SUCCESS
         if look_at(self.blackboard, destination, tolerance=5):
             set_action(self.blackboard, Actions.MOVE, 0.5)
@@ -70,7 +70,7 @@ class IsAt(Behaviour):
 
     def update(self):
         cur_pos = get_current_pos(self.blackboard)
-        if is_at(cur_pos=cur_pos, destination=self.destination, tolerance=self.tolerance):
+        if within_tolerance(pos_a=cur_pos, destination=self.destination, tolerance=self.tolerance):
             return Status.SUCCESS
         else:
             print('Not reached: ' + str(cur_pos))
@@ -240,7 +240,7 @@ class IsCloseToEntity(Behaviour):
         register_commands(self.blackboard, can_write=True)
 
     def update(self):
-        pos, _ = get_closer_entity(self.blackboard, self.entity)
+        pos, _ = get_closer_entity(self.blackboard, self.entity, tolerance=self.tolerance)
         if pos is None:
             return Status.FAILURE
         if self.comm_variable:
@@ -362,8 +362,8 @@ def get_grid_block(client, target_coords):
     return grid_coords
 
 
-def is_at(cur_pos, destination, tolerance):
-    return np.all(np.abs(cur_pos - destination) - tolerance < 0)
+def within_tolerance(pos_a, pos_b, tolerance):
+    return np.all(np.abs(pos_a - pos_b) - tolerance < 0)
 
 
 def has_item(client, item, quantity):
@@ -377,7 +377,7 @@ def has_item(client, item, quantity):
     return False
 
 
-def get_closer_entity(client, entity_name):
+def get_closer_entity(client, entity_name, tolerance=None):
     cur_pos = get_current_pos(client)
     entities = read_observation(client, Observations.NEARBY_ENTITIES)
     min_dist = np.inf
@@ -386,7 +386,8 @@ def get_closer_entity(client, entity_name):
     for entity in entities:
         if entity['name'] == entity_name:
             pos = np.array([entity['x'], entity['z'], entity['y']])
-            dist = np.linalg.norm(pos - cur_pos)
-            if dist < min_dist:
-                min_dist_entity = entity
+            if tolerance is not None and within_tolerance(cur_pos, pos, tolerance):
+                dist = np.linalg.norm(pos - cur_pos)
+                if dist < min_dist:
+                    min_dist_entity = entity
     return min_dist_entity_pos, min_dist_entity
