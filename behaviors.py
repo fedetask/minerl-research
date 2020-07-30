@@ -12,126 +12,18 @@ from malmo_env import MalmoEnv
 from crafting import can_craft
 
 
-# ------------------------------ HELPER FUNCTIONS -------------------------------------------------
-def get_current_pos(client):
-    """Returns the current player position.
-
-    Args:
-        client (Client): A client that has read access to the observations namespace.
-
-    Returns:
-        A Numpy array with the x, y, z coordinates of the player
-
-    """
-    x = read_observation(client, Observations.X_POS)
-    y = read_observation(client, Observations.Y_POS)
-    z = read_observation(client, Observations.Z_POS)
-    return np.array([x, z, y])
-
-
-def get_current_orientation(client):
-    yaw = read_observation(client, Observations.YAW)
-    pitch = read_observation(client, Observations.PITCH)
-    return np.array([yaw, pitch])
-
-
-def get_relative_point(client, point):
-    cur_pos = get_current_pos(client)
-    target_relative = point - cur_pos
-    return target_relative
-
-
-def look_at(client, target, tolerance, speed_modifier=0.5):
-    """Perform the TURN and PITCH actions in order to orient the player towards the target.
-
-    The correct turning speed is computed by taking into consideration the maximum turning speed,
-    the average time between decisions, and the game frequency, in order to avoid oscillations.
-
-    Args:
-        client (Client): Client of the behavior calling the action
-        target (np.ndarray): Position of the target, in the format [x, z, y]
-        tolerance (float): Tolerance (in degrees) for stopping the turning action.
-        speed_modifier (float): Modifier of the turning speed. A value of 1 means that the player
-            will try to turn as fast as possible towards the target, but delays in the
-            asynchronous malmo environment may make it oscillate. Values lower than 1 will make
-            the turning slower, but less oscillating and can therefore achieve the goal faster.
-
-    Returns:
-        True if the player is oriented towards the target within the given tolerance,
-        False otherwise
-
-    """
-    max_turn_speed = read_observation(client, Observations.TURN_SPEED)  # degrees per ms
-    avg_step_duration = read_observation(client, Observations.AVG_STEP_DURATION)
-    ms_per_tick = read_observation(client, Observations.MS_PER_TICK)
-    orientation = get_current_orientation(client)
-    cur_pos = get_current_pos(client) + np.array([0, 0, 1.625])  # Aim origin is one block above
-    target_rel = target - cur_pos
-
-    # Computing yaw difference
-    yaw = orientation[0] if orientation[0] <= 180 else -(360 - orientation[0])
-    target_yaw = - np.degrees(np.arctan2(target_rel[0], target_rel[1]))
-    delta_yaw = (target_yaw - yaw + 540) % 360 - 180
-
-    # Computing turning speed to perform turn of delta_yaw in one step
-    yaw_speed = 1000 * (np.abs(delta_yaw) / avg_step_duration) / ms_per_tick
-    yaw_cmd = speed_modifier * np.clip(yaw_speed / max_turn_speed, 0, 1)
-
-    # Computing pitch difference
-    distance = np.linalg.norm(target_rel)
-    delta_pitch = orientation[1] - np.degrees(np.arcsin((target_rel[2]) / distance))
-
-    # Computing turning speed to perform delta_pitch in one step
-    pitch_speed = 1000 * (np.abs(delta_pitch) / avg_step_duration) / ms_per_tick
-    pitch_cmd = speed_modifier * np.clip(pitch_speed / max_turn_speed, 0, 1)
-
-    if delta_yaw > 0:
-        set_action(client, Actions.TURN, yaw_cmd)
-    else:
-        set_action(client, Actions.TURN, -yaw_cmd)
-
-    if delta_pitch > 0:  # Target is above
-        set_action(client, Actions.PITCH, -pitch_cmd)  # Negative pitch command means look up
-    else:
-        set_action(client, Actions.PITCH, pitch_cmd)
-
-    if np.abs(delta_yaw) < tolerance and np.abs(delta_pitch) < tolerance:
-        set_action(client, Actions.TURN, 0)
-        return True
-    return False
-
-
-def get_grid_block(client, target_coords):
-    """Compute the indices of the grid observation correspondent to the target coords.
-
-    Args:
-        client (Client): Client able to read Observations.
-        target_coords (np.ndarray): Coordinates of the target point, in the world frame.
-
-    Returns:
-        The indices of the grid block that contains the given coordinates.
-
-    """
-    target_rel = target_coords - np.floor(get_current_pos(client))
-    grid_size = read_observation(client, Observations.GRID_DIM)
-    center = (np.array([grid_size['x_size'], grid_size['z_size'], grid_size['y_size']]) - 1) / 2
-    grid_coords = center + target_rel
-    grid_coords = tuple(np.array(grid_coords, dtype=int))
-    return grid_coords
-
-
 # --------------------------------- Behaviors ----------------------------------------------
 
-class GoTo(Behaviour):
+class MoveTo(Behaviour):
     """Behavior that moves the player towards the destination specified in the commands blackboard
 
     """
 
-    def __init__(self, name, destination_key):
+    def __init__(self, name, destination_key, tolerance):
         super().__init__(name)
         self.blackboard = self.attach_blackboard_client(name=name)
         self.destination_key = destination_key
-        self.destination = None
+        self.tolerance = tolerance
 
     def setup(self):
         super().setup()
@@ -139,15 +31,17 @@ class GoTo(Behaviour):
         register_commands(client=self.blackboard, can_write=False)
         register_observations(client=self.blackboard, can_write=False)
 
-    def initialise(self):
-        super().initialise()
-        self.destination = read_command(self.blackboard, self.destination_key)
-
     def terminate(self, new_status):
         super().terminate(new_status)
-        self.destination = None
+        set_action(self.blackboard, Actions.MOVE, 0)
 
     def update(self):
+        destination = read_command(self.blackboard, self.destination_key)
+        cur_pos = get_current_pos(self.blackboard)
+        if is_at(cur_pos=cur_pos, destination=destination, tolerance=self.tolerance):
+            return Status.SUCCESS
+        if look_at(self.blackboard, destination, tolerance=5):
+            set_action(self.blackboard, Actions.MOVE, 0.5)
         return Status.RUNNING
 
 
@@ -172,14 +66,15 @@ class IsAt(Behaviour):
 
     def initialise(self):
         super().initialise()
+        self.destination = read_command(self.blackboard, self.destination_key)
 
     def update(self):
-        self.destination = read_command(self.blackboard, self.destination_key)
         cur_pos = get_current_pos(self.blackboard)
-        if np.any(np.abs(cur_pos - self.destination) - self.tolerance > 0):
-            return Status.FAILURE
-        else:
+        if is_at(cur_pos=cur_pos, destination=self.destination, tolerance=self.tolerance):
             return Status.SUCCESS
+        else:
+            print('Not reached: ' + str(cur_pos))
+            return Status.FAILURE
 
 
 class IsCloseTo(Behaviour):
@@ -259,14 +154,10 @@ class HasItem(Behaviour):
         register_observations(self.blackboard, can_write=False)
 
     def update(self):
-        inventory = read_observation(self.blackboard, Observations.INVENTORY)
-        available_items = MalmoEnv.get_item_from_inventory(inventory, self.item)
-        if not available_items:
-            return Status.FAILURE
-        tot_quantity = sum(item['quantity'] for item in available_items)
-        if self.quantity is None or tot_quantity >= self.quantity:
+        if has_item(self.blackboard, self.item, self.quantity):
             return Status.SUCCESS
-        return Status.FAILURE
+        else:
+            return Status.FAILURE
 
 
 class Craft(Behaviour):
@@ -309,11 +200,15 @@ class Destroy(Behaviour):
         super().initialise()
         self.target_coords = read_command(self.blackboard, Commands.CLOSEST_WOOD)
         self.target_block = get_grid_block(self.blackboard, self.target_coords)
+        if read_observation(self.blackboard, Observations.GRID)[self.target_block] == Items.AIR:
+            print('ERROR: TARGETING AIR BLOCK')
+            exit()
 
     def terminate(self, new_status):
         super().terminate(new_status)
         self.target_coords = None
         self.target_block = None
+        set_action(self.blackboard, Actions.ATTACK, 0)
 
     def update(self):
         grid = read_observation(self.blackboard, Observations.GRID)
@@ -322,10 +217,166 @@ class Destroy(Behaviour):
         if grid[self.target_block] == Items.AIR:
             set_action(self.blackboard, Actions.ATTACK, 0)
             return Status.SUCCESS  # Block was destroyed. TODO: Check it was not air already
-        if look_at(self.blackboard, self.target_coords + np.array([0.0] * 3), tolerance=0.01):
+
+        if look_at(self.blackboard, block_center(self.target_coords), tolerance=1):
             if not line_sight['inRange']:
                 set_action(self.blackboard, Actions.ATTACK, 0)
                 return Status.FAILURE  # The block we want to hit is not in range
-            set_action(self.blackboard, Actions.ATTACK, 0)
+            set_action(self.blackboard, Actions.ATTACK, 1)
         return Status.RUNNING
 
+
+class HasEntityNearby(Behaviour):
+
+    def __init__(self, name, entity, tolerance=None, comm_variable=None):
+        super().__init__(name)
+        self.entity = entity
+        self.tolerance = tolerance
+        self.comm_variable = comm_variable
+        self.blackboard = self.attach_blackboard_client(name=self.name)
+        if tolerance is not None:
+            raise NotImplementedError('Tolerance for nearby entity has not been implemented yet')
+
+    def setup(self, **kwargs):
+        super().setup(**kwargs)
+        register_observations(self.blackboard, can_write=False)
+        register_commands(self.blackboard, can_write=True)
+
+    def update(self):
+        entities = read_observation(self.blackboard, Observations.NEARBY_ENTITIES)
+        for entity in entities:
+            if entity['name'] == self.entity:
+                pos = np.array([entity['x'], entity['z'], entity['y']])
+                if self.comm_variable:
+                    set_command(self.blackboard, self.comm_variable, pos)
+                return Status.SUCCESS
+        return Status.FAILURE
+
+
+# ------------------------------ HELPER FUNCTIONS -------------------------------------------------
+
+
+def get_current_pos(client):
+    """Returns the current player position.
+
+    Args:
+        client (Client): A client that has read access to the observations namespace.
+
+    Returns:
+        A Numpy array with the x, y, z coordinates of the player
+
+    """
+    x = read_observation(client, Observations.X_POS)
+    y = read_observation(client, Observations.Y_POS)
+    z = read_observation(client, Observations.Z_POS)
+    return np.array([x, z, y])
+
+
+def get_current_orientation(client):
+    yaw = read_observation(client, Observations.YAW)
+    pitch = read_observation(client, Observations.PITCH)
+    return np.array([yaw, pitch])
+
+
+def get_relative_point(client, point):
+    cur_pos = get_current_pos(client)
+    target_relative = point - cur_pos
+    return target_relative
+
+
+def look_at(client, target, tolerance, speed_modifier=0.5):
+    """Perform the TURN and PITCH actions in order to orient the player towards the target.
+
+    The correct turning speed is computed by taking into consideration the maximum turning speed,
+    the average time between decisions, and the game frequency, in order to avoid oscillations.
+
+    Args:
+        client (Client): Client of the behavior calling the action
+        target (np.ndarray): Position of the target, in the format [x, z, y]
+        tolerance (float): Tolerance (in degrees) for stopping the turning action.
+        speed_modifier (float): Modifier of the turning speed. A value of 1 means that the player
+            will try to turn as fast as possible towards the target, but delays in the
+            asynchronous malmo environment may make it oscillate. Values lower than 1 will make
+            the turning slower, but less oscillating and can therefore achieve the goal faster.
+
+    Returns:
+        True if the player is oriented towards the target within the given tolerance,
+        False otherwise
+
+    """
+    max_turn_speed = read_observation(client, Observations.TURN_SPEED)  # degrees per ms
+    avg_step_duration = read_observation(client, Observations.AVG_STEP_DURATION)
+    ms_per_tick = read_observation(client, Observations.MS_PER_TICK)
+    orientation = get_current_orientation(client)
+    cur_pos = get_current_pos(client) + np.array([0, 0, 1.625])  # Aim origin is one block above
+    target_rel = target - cur_pos
+
+    # Computing yaw difference
+    yaw = orientation[0] if orientation[0] <= 180 else -(360 - orientation[0])
+    target_yaw = - np.degrees(np.arctan2(target_rel[0], target_rel[1]))
+    delta_yaw = (target_yaw - yaw + 540) % 360 - 180
+
+    # Computing turning speed to perform turn of delta_yaw in one step
+    yaw_speed = 1000 * (np.abs(delta_yaw) / avg_step_duration) / ms_per_tick
+    yaw_cmd = speed_modifier * np.clip(yaw_speed / max_turn_speed, 0, 1)
+
+    # Computing pitch difference
+    distance = np.linalg.norm(target_rel)
+    delta_pitch = orientation[1] - np.degrees(np.arcsin((-target_rel[2]) / distance))
+
+    # Computing turning speed to perform delta_pitch in one step
+    pitch_speed = 1000 * (np.abs(delta_pitch) / avg_step_duration) / ms_per_tick
+    pitch_cmd = speed_modifier * np.clip(pitch_speed / max_turn_speed, 0, 1)
+
+    if delta_yaw > 0:
+        set_action(client, Actions.TURN, yaw_cmd)
+    else:
+        set_action(client, Actions.TURN, -yaw_cmd)
+
+    if delta_pitch > 0:  # Target is above
+        set_action(client, Actions.PITCH, -pitch_cmd)  # Negative pitch command means look up
+    else:
+        set_action(client, Actions.PITCH, pitch_cmd)
+
+    if np.abs(delta_yaw) < tolerance and np.abs(delta_pitch) < tolerance:
+        set_action(client, Actions.TURN, 0)
+        return True
+    return False
+
+
+def block_center(block_coords):
+    return block_coords + np.array([.5, .5, .5])
+
+
+def get_grid_block(client, target_coords):
+    """Compute the indices of the grid observation correspondent to the target coords.
+
+    Args:
+        client (Client): Client able to read Observations.
+        target_coords (np.ndarray): Coordinates of the target point, in the world frame.
+
+    Returns:
+        The indices of the grid block that contains the given coordinates.
+
+    """
+    target_rel = target_coords - np.floor(get_current_pos(client))
+    grid_size = read_observation(client, Observations.GRID_DIM)
+    center = (np.array([grid_size['x_size'], grid_size['z_size'], grid_size['y_size']]) - 1) / 2
+    grid_coords = center + target_rel
+    grid_coords = tuple(np.array(grid_coords, dtype=int))
+    return grid_coords
+
+
+def is_at(cur_pos, destination, tolerance):
+    return np.all(np.abs(cur_pos - destination) - tolerance < 0)
+
+
+def has_item(client, item, quantity):
+    inventory = read_observation(client, Observations.INVENTORY)
+    available_items = MalmoEnv.get_item_from_inventory(inventory, item)
+    if not available_items:
+        return False
+    tot_quantity = sum(item['quantity'] for item in available_items)
+    if quantity is None or tot_quantity >= quantity:
+        return True
+    return False

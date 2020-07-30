@@ -86,8 +86,8 @@ class Actions(KeyList):
 
 class Commands(KeyList):
 
-    CLOSEST_WOOD = 'closest_wood'
+    HAS_GET_ITEM = 'has_get_item'
 
     @staticmethod
     def all():
-        return [Commands.CLOSEST_WOOD]
+        return [Commands.HAS_GET_ITEM]
