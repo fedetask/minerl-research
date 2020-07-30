@@ -77,7 +77,7 @@ class IsAt(Behaviour):
             return Status.FAILURE
 
 
-class IsCloseTo(Behaviour):
+class IsCloseToBlock(Behaviour):
 
     def __init__(self, name, item, tolerance, out_variable):
         """Behavior that checks whether the player is close to an item within the given tolerance.
@@ -198,11 +198,10 @@ class Destroy(Behaviour):
 
     def initialise(self):
         super().initialise()
-        self.target_coords = read_command(self.blackboard, Commands.CLOSEST_WOOD)
+        self.target_coords = read_command(self.blackboard, self.comm_variable)
         self.target_block = get_grid_block(self.blackboard, self.target_coords)
         if read_observation(self.blackboard, Observations.GRID)[self.target_block] == Items.AIR:
             print('ERROR: TARGETING AIR BLOCK')
-            exit()
 
     def terminate(self, new_status):
         super().terminate(new_status)
@@ -218,7 +217,7 @@ class Destroy(Behaviour):
             set_action(self.blackboard, Actions.ATTACK, 0)
             return Status.SUCCESS  # Block was destroyed. TODO: Check it was not air already
 
-        if look_at(self.blackboard, block_center(self.target_coords), tolerance=1):
+        if look_at(self.blackboard, block_center(self.target_coords), tolerance=3):
             if not line_sight['inRange']:
                 set_action(self.blackboard, Actions.ATTACK, 0)
                 return Status.FAILURE  # The block we want to hit is not in range
@@ -226,16 +225,14 @@ class Destroy(Behaviour):
         return Status.RUNNING
 
 
-class HasEntityNearby(Behaviour):
+class IsCloseToEntity(Behaviour):
 
-    def __init__(self, name, entity, tolerance=None, comm_variable=None):
+    def __init__(self, name, entity, tolerance=None, out_variable=None):
         super().__init__(name)
         self.entity = entity
         self.tolerance = tolerance
-        self.comm_variable = comm_variable
+        self.comm_variable = out_variable
         self.blackboard = self.attach_blackboard_client(name=self.name)
-        if tolerance is not None:
-            raise NotImplementedError('Tolerance for nearby entity has not been implemented yet')
 
     def setup(self, **kwargs):
         super().setup(**kwargs)
@@ -243,14 +240,12 @@ class HasEntityNearby(Behaviour):
         register_commands(self.blackboard, can_write=True)
 
     def update(self):
-        entities = read_observation(self.blackboard, Observations.NEARBY_ENTITIES)
-        for entity in entities:
-            if entity['name'] == self.entity:
-                pos = np.array([entity['x'], entity['z'], entity['y']])
-                if self.comm_variable:
-                    set_command(self.blackboard, self.comm_variable, pos)
-                return Status.SUCCESS
-        return Status.FAILURE
+        pos, _ = get_closer_entity(self.blackboard, self.entity)
+        if pos is None:
+            return Status.FAILURE
+        if self.comm_variable:
+            set_command(self.blackboard, self.comm_variable, pos)
+        return Status.SUCCESS
 
 
 # ------------------------------ HELPER FUNCTIONS -------------------------------------------------
@@ -380,3 +375,18 @@ def has_item(client, item, quantity):
     if quantity is None or tot_quantity >= quantity:
         return True
     return False
+
+
+def get_closer_entity(client, entity_name):
+    cur_pos = get_current_pos(client)
+    entities = read_observation(client, Observations.NEARBY_ENTITIES)
+    min_dist = np.inf
+    min_dist_entity = None
+    min_dist_entity_pos = None
+    for entity in entities:
+        if entity['name'] == entity_name:
+            pos = np.array([entity['x'], entity['z'], entity['y']])
+            dist = np.linalg.norm(pos - cur_pos)
+            if dist < min_dist:
+                min_dist_entity = entity
+    return min_dist_entity_pos, min_dist_entity
