@@ -13,7 +13,6 @@ class KeyList(ABC):
         Returns: A list containing all the variable values of the KeyList
 
         """
-        pass
 
 
 class Observations(KeyList):
