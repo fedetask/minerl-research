@@ -75,8 +75,11 @@ class Actions(KeyList):
     CROUCH = 'crouch'
     ATTACK = 'attack'
     USE = 'use'
-    SELECT = 'select'
+    SELECT = 'select'  # Arguments of this can be: Items.STONE_PICKAXE, Items.WOODEN_PICKAXE, HAND
     CRAFT = 'craft'
+
+    # This is not an action, but a special argument of Actions.SELECT
+    HAND = 'hand'
 
     @staticmethod
     def all():

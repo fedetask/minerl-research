@@ -14,6 +14,8 @@ from blackboards import read_observation, set_observation, read_action, set_acti
 
 class MalmoEnv:
 
+    INVENTORY_SIZE = 36
+
     def __init__(self, mission_path):
         self.blackboard = py_trees.blackboard.Client(name='malmo_env')
         register_actions(self.blackboard, True)
@@ -123,6 +125,26 @@ class MalmoEnv:
             if item['type'] == requested_item and (variant is None or item['variant'] == variant):
                 available_items.append(item)
         return available_items
+
+    @staticmethod
+    def get_free_inventory_cell(inventory):
+        """Get the index of the first empty inventory cell.
+
+        Args:
+            inventory (dict): The inventory observation.
+
+        Returns:
+            The index of the first empty cell of the inventory, or None if inventory is full.
+
+        """
+        inv_free = np.ones(MalmoEnv.INVENTORY_SIZE, dtype=bool)
+        for item in inventory:
+            inv_free[item['index']] = False
+        inv_free = np.where(inv_free)[0]
+        if len(inv_free) > 0:
+            return inv_free[0]  # The first free position
+        else:
+            return None
 
     def _write_mission_properties(self):
         """Write in the observations blackboard some properties of the xml that must be taken
@@ -262,15 +284,18 @@ class MalmoEnv:
         if action_value is None:
             raise ValueError('Error: Crafting command with empty target')
         if action_name == Actions.SELECT:
-            available_items = MalmoEnv.get_item_from_inventory(
-                inventory=read_observation(self.blackboard, Observations.INVENTORY),
-                requested_item=action_value
-            )
-            if not available_items:
-                raise ValueError('Error: Trying to select ' + action_value +
-                                 'but it is not present in inventory')
-            index = available_items[0]['index']  # The first available is okay
-            return 'swapInventoryItems 0 ' + str(index)
+            inventory = read_observation(self.blackboard, Observations.INVENTORY)
+            if action_value == Actions.HAND:
+                empty_cell = MalmoEnv.get_free_inventory_cell(inventory)
+                return 'swapInventoryItems 0 ' + str(empty_cell)
+            else:
+                available_items = MalmoEnv.get_item_from_inventory(inventory=inventory,
+                                                                   requested_item=action_value)
+                if not available_items:
+                    raise ValueError('Error: Trying to select ' + action_value +
+                                     'but it is not present in inventory')
+                index = available_items[0]['index']  # The first available is okay
+                return 'swapInventoryItems 0 ' + str(index)
         if action_name == Actions.CRAFT:
             if action_value == Items.PLANKS:
                 crafting_target = self._get_craft_target(Items.PLANKS)
@@ -319,6 +344,7 @@ class MalmoEnv:
         if log_obs:
             for obs_key in log_obs:
                 print(obs_key + ': ' + str(obs[obs_key]))
+            print()
         if log_behavior:
             print(py_trees.display.unicode_tree(root=behavior.root, show_status=True))
 
@@ -330,4 +356,4 @@ if __name__ == '__main__':
     env.init()
     behavior_tree = subtrees.get_behavior_tree()
     env.run(behavior=behavior_tree, max_steps=0, min_step_duration=15,
-            log_obs=[], log_behavior=False)
+            log_obs=[Observations.INVENTORY], log_behavior=False)
