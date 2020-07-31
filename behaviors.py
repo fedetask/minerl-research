@@ -38,7 +38,7 @@ class MoveTo(Behaviour):
     def update(self):
         destination = read_command(self.blackboard, self.destination_key)
         cur_pos = get_current_pos(self.blackboard)
-        if within_tolerance(pos_a=cur_pos, destination=destination, tolerance=self.tolerance):
+        if within_tolerance(pos_a=cur_pos, pos_b=destination, tolerance=self.tolerance):
             return Status.SUCCESS
         if look_at(self.blackboard, destination, tolerance=5):
             set_action(self.blackboard, Actions.MOVE, 0.5)
@@ -386,8 +386,10 @@ def get_closer_entity(client, entity_name, tolerance=None):
     for entity in entities:
         if entity['name'] == entity_name:
             pos = np.array([entity['x'], entity['z'], entity['y']])
-            if tolerance is not None and within_tolerance(cur_pos, pos, tolerance):
-                dist = np.linalg.norm(pos - cur_pos)
-                if dist < min_dist:
-                    min_dist_entity = entity
+            if tolerance is not None and not within_tolerance(cur_pos, pos, tolerance):
+                continue
+            dist = np.linalg.norm(pos - cur_pos)
+            if dist < min_dist:
+                min_dist_entity = entity
+                min_dist_entity_pos = pos
     return min_dist_entity_pos, min_dist_entity
