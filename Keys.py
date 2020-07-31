@@ -54,6 +54,7 @@ class Items(KeyList):
     WOODEN_PICKAXE = 'wooden_pickaxe'
     STONE_PICKAXE = 'stone_pickaxe'
     COBBLESTONE = 'cobblestone'
+    STONE = 'stone'
     FURNACE = 'furnace'
     LOG = 'log'
     AIR = 'air'
