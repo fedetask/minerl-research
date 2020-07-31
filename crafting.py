@@ -5,8 +5,13 @@ RECIPES = {
     Items.PLANKS: {'out_quantity': 4, 'ingredients': [(1, Items.LOG)]},
     Items.CRAFTING_TABLE: {'out_quantity': 1, 'ingredients': [(4, Items.PLANKS)]},
     Items.STICK: {'out_quantity': 4, 'ingredients': [(2, Items.PLANKS)]},
-    Items.WOODEN_PICKAXE: {'out_quantity': 1, 'ingredients': [(3, Items.PLANKS), (2, Items.STICK)]}
+    Items.WOODEN_PICKAXE: {'out_quantity': 1, 'ingredients': [(3, Items.PLANKS), (2, Items.STICK)]},
+    Items.STONE_PICKAXE: {'out_quantity': 1, 'ingredients': [(2, Items.STICK), (3, Items.COBBLESTONE)]}
 }
+
+# Maps the item that one wants to destroy with a list of tools that can be used to destroy it
+DESTROY_TOOLS = {Items.LOG: [],
+                 Items.STONE: [Items.STONE_PICKAXE, Items.WOODEN_PICKAXE]}
 
 
 def can_craft(item, inventory) -> bool:
@@ -30,3 +35,17 @@ def can_craft(item, inventory) -> bool:
         if tot_quantity < quantity:
             return False
     return True
+
+
+def get_tool_to_destroy(block):
+    """Get the tool to destroy the given block.
+
+    Args:
+        block (str): Name of the block that has to be destroyed.
+
+    Returns:
+        A list of tools that can destroy the block. An empty list means that it can be destroyed
+        with bare hands.
+
+    """
+    return DESTROY_TOOLS[block]
