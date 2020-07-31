@@ -9,3 +9,5 @@ vae/log_dir
 examples/
 __init__.py
 __pycache__
+test_py_tree.py
+test_commands.py
