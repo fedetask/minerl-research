@@ -17,7 +17,8 @@ from Keys import Commands, Actions, Observations, Items
 from blackboards import register_commands, write_variables, Namespace
 
 
-BARE_HANDS_RANGE = np.array([4, 4, 4])
+CLOSE_TO_BLOCK = np.array([2, 2, 4])
+CLOSE_TO_FLOATING = np.array([1, 1, 1])
 
 
 class MemorylessSequence(Composite):
@@ -76,7 +77,7 @@ class MemorylessSequence(Composite):
 
 
 def get_behavior_tree():
-    root = get_has_get_wood_pickaxe(name='HasGetWoodPickaxe')
+    root = get_has_get_stone_pickaxe(name='HasGetStonePickaxe', quantity=1)
     tree = BehaviourTree(root=root)
     tree.setup()
     blackboard = Client(name='BehaviorTree')
@@ -86,15 +87,33 @@ def get_behavior_tree():
     return tree
 
 
-def get_craft_cobblestone_pickaxe(name):
-    root = MemorylessSequence(name=name + '_root')
+def get_has_get_stone_pickaxe(name, quantity):
+    root = Selector(name=name + '_root')
+    precondition = behaviors.HasItem(name=name + '_precondition', item=Items.STONE_PICKAXE,
+                                     quantity=quantity)
+    sequence = MemorylessSequence(name=name + '_sequence')
 
-    get_wood_pickaxe = get_has_get_wood_pickaxe(name=name + '_get_wood_pickaxe')
+    root.add_children([precondition, sequence])
+
+    get_wood_pickaxe = get_has_get_wood_pickaxe(name=name + '_has_get_wood', quantity=1)
+    get_wood = get_has_get_item_subtree(name=name + '_get_wood', item_block=Items.LOG,
+                                        item_floating=Items.LOG, quantity=1)
+    get_cobblestone = get_has_get_item_subtree(name + '_get_cobblestone',
+                                               item_block=Items.STONE,
+                                               item_floating=Items.COBBLESTONE,
+                                               quantity=3)
+    craft = get_craft_stone_pickaxe(name=name + '_craft_stone_pickaxe')
+    sequence.add_children([get_wood_pickaxe, get_wood, get_cobblestone, craft])
+    return root
+
+
+def get_craft_stone_pickaxe(name):
+    root = MemorylessSequence(name=name + '_root')
 
     # Get sticks subtree
     sticks_root = Selector(name=name + '_sticks_root')
     has_sticks = behaviors.HasItem(name=name + '_has_sticks', item=Items.STICK, quantity=2)
-    get_sticks_sequence = Sequence(name=name + '_sticks_sequence')
+    get_sticks_sequence = MemorylessSequence(name=name + '_sticks_sequence')
     has_craft_planks = get_has_craft_item_subtree(name=name + '_craft_planks', item=Items.PLANKS,
                                                   quantity=2)
     craft_sticks = get_has_craft_item_subtree(name=name + '_craft_sticks', item=Items.STICK,
@@ -103,23 +122,24 @@ def get_craft_cobblestone_pickaxe(name):
     sticks_root.add_children([has_sticks, get_sticks_sequence])
 
     # Get cobblestone subtree
-    get_cobblestone = get_has_get_item_subtree(name=name + '_get_cobblestone',
-                                               item=Items.COBBLESTONE, quantity=3)
+    has_cobblestone = behaviors.HasItem(name=name + '_has_cobblestone', item=Items.COBBLESTONE,
+                                        quantity=3)
 
     # Finally, craft the pickaxe
-    craft_pickaxe = get_has_craft_item_subtree(name=name + '_craft_stone_picaxe',
-                                               item=Items.STONE_PICKAXE)
+    craft_pickaxe = behaviors.Craft(name=name + '_craft_stone_pickaxe', item=Items.STONE_PICKAXE)
 
-    root.add_children([get_wood_pickaxe, sticks_root, get_cobblestone, craft_pickaxe])
+    root.add_children([sticks_root, has_cobblestone, craft_pickaxe])
     return root
 
 
-def get_has_get_wood_pickaxe(name):
+def get_has_get_wood_pickaxe(name, quantity):
     root = Selector(name=name + '_root')
-    has_pickaxe = behaviors.HasItem(name=name + '_has_wooden_pickaxe', item=Items.WOODEN_PICKAXE)
+    has_pickaxe = behaviors.HasItem(name=name + '_has_wooden_pickaxe', item=Items.WOODEN_PICKAXE,
+                                    quantity=quantity)
     sequence = MemorylessSequence(name=name + '_craft_pickaxe_sequence')
     get_wood = get_has_get_item_subtree(name=name + '_get_wood',
-                                        item=Items.LOG,
+                                        item_floating=Items.LOG,
+                                        item_block=Items.LOG,
                                         quantity=3)
     craft_pickaxe = get_craft_wood_pickaxe_subtree(name=name + '_craft_wood_pickaxe')
 
@@ -162,40 +182,61 @@ def get_has_craft_item_subtree(name, item, quantity):
     return root
 
 
-def get_has_get_item_subtree(name, item, quantity):
+def get_has_get_item_subtree(name, item_block, item_floating, quantity):
     root = Selector(name=name + '_root')
-    has_wood = behaviors.HasItem(name=name + '_has_' + item, item=item, quantity=quantity)
+    # Floating items always have the name they would have in inventory
+    has_item = behaviors.HasItem(name=name + '_precondition', item=item_floating, quantity=quantity)
     sequence = MemorylessSequence(name=name + '_sequence')
-    is_get_close_to = get_is_get_close_to_subtree(name=name + '_is_get_close_to_' + item,
-                                                  item=Items.LOG,
-                                                  tolerance=BARE_HANDS_RANGE,
+    is_get_close_to = get_is_get_close_to_subtree(name=name + '_is_get_close_to_',
+                                                  item_floating=item_floating,
+                                                  item_block=item_block,
+                                                  tolerance_floating=CLOSE_TO_FLOATING,
+                                                  tolerance_block=CLOSE_TO_BLOCK,
                                                   comm_variable=Commands.HAS_GET_ITEM)
     destroy = behaviors.Destroy(name=name + '_destroy', comm_variable=Commands.HAS_GET_ITEM)
 
     sequence.add_children([is_get_close_to, destroy])
-    root.add_children([has_wood, sequence])
+    root.add_children([has_item, sequence])
     return root
 
 
-def get_is_get_close_to_subtree(name, item, tolerance, comm_variable):
+def get_is_get_close_to_subtree(name, item_block, item_floating, comm_variable,
+                                tolerance_block=CLOSE_TO_BLOCK,
+                                tolerance_floating=CLOSE_TO_FLOATING):
     root = Selector(name + '_root')
     # Precondition
-    is_close = behaviors.IsCloseTo(name + '_precondition', item=item, tolerance=tolerance,
-                                   out_variable=comm_variable)
+    precond_select = Selector(name=name + '_preconditions_root')
+    is_close_floating = behaviors.IsCloseToEntity(name + '_precondition_floating',
+                                                  entity=item_floating,
+                                                  tolerance=tolerance_floating,
+                                                  out_variable=comm_variable)
+    is_close_block = behaviors.IsCloseToBlock(name=name + '_precondition_block',
+                                              item=item_block,
+                                              tolerance=tolerance_block,
+                                              out_variable=comm_variable)
+    precond_select.add_children([is_close_floating, is_close_block])
+
     # Check if there is a floating entity of the specified item around
-    has_entity_nearby = behaviors.HasEntityNearby(name + '_is_close_to_floating', entity=item,
-                                                  comm_variable=comm_variable)
-    move_to_entity = behaviors.MoveTo(name=name + '_mo', destination_key=comm_variable,
-                                      tolerance=BARE_HANDS_RANGE)
     move_to_entity_sequence = MemorylessSequence(name=name + '_move_to_entity_sequence')
+    has_entity_nearby = behaviors.IsCloseToEntity(name + '_is_close_to_floating',
+                                                  entity=item_floating,
+                                                  out_variable=comm_variable,
+                                                  tolerance=None)
+    move_to_entity = behaviors.MoveTo(name=name + '_move_to',
+                                      destination_key=comm_variable,
+                                      tolerance=tolerance_floating)
     move_to_entity_sequence.add_children([has_entity_nearby, move_to_entity])
-    # Check if there is the specified item around
-    has_nearby_item = behaviors.IsCloseTo(name + '_has_nearby', item=item, tolerance=None,
-                                          out_variable=comm_variable)
-    move_to_item = behaviors.MoveTo(name=name + '_move_to_item', destination_key=comm_variable,
-                                    tolerance=tolerance)
+
+    # Check if there is the specified block item around
     move_to_item_sequence = MemorylessSequence(name=name + '_MoveTo_sequence')
+    has_nearby_item = behaviors.IsCloseToBlock(name + '_has_nearby',
+                                               item=item_block,
+                                               tolerance=None,
+                                               out_variable=comm_variable)
+    move_to_item = behaviors.MoveTo(name=name + '_move_to_item',
+                                    destination_key=comm_variable,
+                                    tolerance=tolerance_block)
     move_to_item_sequence.add_children([has_nearby_item, move_to_item])
 
-    root.add_children([is_close, move_to_entity_sequence, move_to_item_sequence])
+    root.add_children([precond_select, move_to_entity_sequence, move_to_item_sequence])
     return root
