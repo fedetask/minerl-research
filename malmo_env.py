@@ -113,16 +113,19 @@ class MalmoEnv:
 
         Args:
             inventory (dict): The inventory dictionary
-            requested_item (str): Key corresponding to the item
+            requested_item (str, list): Key corresponding to the item, or list of keys.
             variant (str): The requested variant. If None, all owned variants will be returned.
 
         Returns:
-            The first instance of the requested item, or None if not found
+            The first instance of the requested item (a dictionary with the item properties),
+            or None if not found.
 
         """
+        if isinstance(requested_item, str):
+            requested_item = [requested_item]
         available_items = []
         for item in inventory:
-            if item['type'] == requested_item and (variant is None or item['variant'] == variant):
+            if item['type'] in requested_item and (variant is None or item['variant'] == variant):
                 available_items.append(item)
         return available_items
 
@@ -356,4 +359,4 @@ if __name__ == '__main__':
     env.init()
     behavior_tree = subtrees.get_behavior_tree()
     env.run(behavior=behavior_tree, max_steps=0, min_step_duration=15,
-            log_obs=[Observations.INVENTORY], log_behavior=False)
+            log_obs=[], log_behavior=False)
