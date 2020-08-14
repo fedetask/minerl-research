@@ -48,4 +48,7 @@ def get_tool_to_destroy(block):
         with bare hands.
 
     """
-    return DESTROY_TOOLS[block]
+    if block in DESTROY_TOOLS:
+        return DESTROY_TOOLS[block]
+    else:
+        return []
