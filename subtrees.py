@@ -17,8 +17,8 @@ from Keys import Commands, Actions, Observations, Items
 from blackboards import register_commands, write_variables, Namespace
 
 
-CLOSE_TO_BLOCK = np.array([2, 2, 4])
-CLOSE_TO_FLOATING = np.array([1, 1, 1])
+CLOSE_TO_BLOCK = np.array([1, 1, 3], dtype=np.int)
+CLOSE_TO_FLOATING = np.array([0, 0, 0], dtype=np.int)
 
 
 class MemorylessSequence(Composite):
