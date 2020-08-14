@@ -45,10 +45,6 @@
                 </Grid>
             </ObservationFromGrid>
             <ObservationFromRay includeNBT="false"/>
-            <VideoProducer want_depth="false">
-                <Width>480</Width>
-                <Height>320</Height>
-            </VideoProducer>
         </AgentHandlers>
     </AgentSection>
 </Mission>
